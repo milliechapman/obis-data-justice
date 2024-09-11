@@ -16,6 +16,7 @@ knitr::opts_chunk$set(
 
 ```{r}
 library(tidyverse) 
+library(dplyr)
 library(sf) 
 library(terra)
 library(raster)
@@ -33,25 +34,44 @@ db <- open_dataset(obis_snapshot)
 ```{r}
 obis_bathymetry <- db |>
   filter(flags == "{}") |> 
-  mutate(bath_obs_prop = minimumDepthInMeters/bathymetry) |>
-  filter(bath_obs_prop > 0) |>
-  filter(bath_obs_prop <1) |>
+  mutate(bath_obs_prop_min = minimumDepthInMeters/bathymetry) |>
+  mutate(bath_obs_prop_max = minimumDepthInMeters/bathymetry) |>
+  filter(bath_obs_prop_min > 0) |>
+  filter(bath_obs_prop_min <1) |>
+  filter(bath_obs_prop_max > 0) |>
+  filter(bath_obs_prop_max <1) |>
   mutate(bathymetry = round(as.numeric(bathymetry),0),
          minimumDepthInMeters = round(as.numeric(minimumDepthInMeters),0)) |>
-  group_by(bathymetry, minimumDepthInMeters, bath_obs_prop) |>
+  group_by(bathymetry, minimumDepthInMeters, bath_obs_prop_min, bath_obs_prop_max) |>
   count() |> 
   collect()
 ```
 
 ```{r}
 obis_bathymetry |> 
-  filter(bath_obs_prop != Inf) |>
-  ggplot(aes(x = bath_obs_prop, weight = n)) +
+  filter(bath_obs_prop_min != Inf) |>
+  ggplot(aes(x = bath_obs_prop_min, weight = n)) +
   geom_histogram(binwidth = 0.02) +
-  labs(x = "Value", y = "Weighted Count", title = "Weighted Histogram of Values") +
+  labs(x = "min_depth prop", y = "Weighted Count") +
   theme_minimal()
 ```
 
+```{r}
+obis_bathymetry |> 
+  filter(bath_obs_prop_max != Inf) |>
+  ggplot(aes(x = bath_obs_prop_max, weight = n)) +
+  geom_histogram(binwidth = 0.02) +
+  labs(x = "min_depth prop", y = "Weighted Count") +
+  theme_minimal()
+```
+
+```{r}
+obis_bathymetry |> 
+  ggplot(aes(x = minimumDepthInMeters, weight = n)) +
+  geom_histogram(binwidth = 200) +
+  labs(x = "Depth", y = "Weighted Count") +
+  theme_minimal()
+```
 
 ## Map 
 
