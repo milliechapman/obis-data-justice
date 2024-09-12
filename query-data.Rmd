@@ -35,7 +35,7 @@ db <- open_dataset(obis_snapshot)
 obis_bathymetry <- db |>
   filter(flags == "{}") |> 
   mutate(bath_obs_prop_min = minimumDepthInMeters/bathymetry) |>
-  mutate(bath_obs_prop_max = minimumDepthInMeters/bathymetry) |>
+  mutate(bath_obs_prop_max = maximumDepthInMeters/bathymetry) |>
   filter(bath_obs_prop_min > 0) |>
   filter(bath_obs_prop_min <1) |>
   filter(bath_obs_prop_max > 0) |>
@@ -71,6 +71,22 @@ obis_bathymetry |>
   geom_histogram(binwidth = 200) +
   labs(x = "Depth", y = "Weighted Count") +
   theme_minimal()
+```
+
+## rights holder
+```{r}
+obis_pub <- db |>
+  group_by(rightsHolder) |>
+  count() |> 
+  collect()
+```
+
+## ID
+```{r}
+obis_pub <- db |>
+  group_by(ownerInstitutionCode) |>
+  count() |> 
+  collect()
 ```
 
 ## Map 
