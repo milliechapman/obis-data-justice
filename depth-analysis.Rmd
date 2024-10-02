@@ -80,6 +80,15 @@ obis_clean <- obis_clean |>
   mutate(minimumDepthInMeters = ifelse(bath_obs_prop_min > 1, bathymetry, minimumDepthInMeters))
 ```
 
+## plot a weighted histogram of observation depth 
+```{r}
+obis_clean |> 
+  ggplot(aes(x = minimumDepthInMeters, weight = n)) +
+  geom_histogram(binwidth = 100) +
+  labs(x = "min_depth", y = "Weighted Count") +
+  theme_minimal()
+```
+
 ## plot a weighted histogram of observation depth proportional to bottom depth
 ```{r}
 obis_clean |> 
