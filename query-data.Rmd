@@ -32,14 +32,66 @@ db <- open_dataset(obis_snapshot)
 ```
 
 ```{r}
+library(stringr)
+obis_filter_test <- db |>
+  filter(!str_detect(flags, "DATE_IN_FUTURE")) |> 
+  filter(!str_detect(flags, "DATE_BEFORE_MIN")) |> 
+  filter(!str_detect(flags, "NO_COORD")) |> 
+  filter(!str_detect(flags, "ZERO_COORD")) |> 
+  filter(!str_detect(flags, "LON_OUT_OF_RANGE")) |> 
+  filter(!str_detect(flags, "LAT_OUT_OF_RANGE")) |> 
+  filter(!str_detect(flags, "NO_DEPTH")) |> 
+  filter(!str_detect(flags, "ON_LAND")) |> 
+  mutate(bath_obs_prop_min = minimumDepthInMeters/bathymetry) |>
+  mutate(bath_obs_prop_max = maximumDepthInMeters/bathymetry) |>
+  mutate(bathymetry = round(as.numeric(bathymetry), 0)) |>
+  mutate(minimumDepthInMeters = round(as.numeric(minimumDepthInMeters), 0)) |>
+  mutate(depth_diff = bathymetry - minimumDepthInMeters) |>
+  mutate(depth_quality_category = ifelse(bath_obs_prop_min <= 1.05 & bath_obs_prop_min >= 0, "depth_good", "depth_bad")) |>
+  group_by(bathymetry, minimumDepthInMeters, bath_obs_prop_min, bath_obs_prop_max, depth_quality_category) |>
+  count() |> 
+  collect()
+```
+
+```{r}
+depth_category_sums <- obis_filter_test |>
+  group_by(depth_quality_category) |>
+  summarize(total_n = sum(n))
+```
+
+
+
+```{r}
+zero_depth_test <- obis_filter_test |>
+  filter(minimumDepthInMeters == 0)
+```
+
+
+```{r}
+obis_filter_test |> 
+  ggplot(aes(x = depth_diff, weight = n)) +
+  geom_histogram() +
+  labs(x = "depth diff (bath - depth)", y = "Weighted Count") +
+  theme_minimal()
+```
+
+```{r}
+library(stringr)
+obis_qc_test <- db |>
+  group_by(absence,dropped) |>
+  count() |> 
+  collect()
+```
+
+```{r}
 obis_bathymetry <- db |>
   filter(flags == "{}") |> 
   mutate(bath_obs_prop_min = minimumDepthInMeters/bathymetry) |>
   mutate(bath_obs_prop_max = maximumDepthInMeters/bathymetry) |>
   filter(bath_obs_prop_min > 0) |>
-  filter(bath_obs_prop_min <1) |>
+  filter(bath_obs_prop_min < 1) |>
   filter(bath_obs_prop_max > 0) |>
-  filter(bath_obs_prop_max <1) |>
+  filter(bath_obs_prop_max < 1) |>
   mutate(bathymetry = round(as.numeric(bathymetry),0),
          minimumDepthInMeters = round(as.numeric(minimumDepthInMeters),0)) |>
   group_by(bathymetry, minimumDepthInMeters, bath_obs_prop_min, bath_obs_prop_max) |>
@@ -48,8 +100,43 @@ obis_bathymetry <- db |>
 ```
 
 ```{r}
-obis_bathymetry |> 
+obis_bathymetry_flag_filter_only <- db |>
+  filter(flags == "{}") |> 
+  mutate(bath_obs_prop_min = minimumDepthInMeters/bathymetry) |>
+  mutate(bath_obs_prop_max = maximumDepthInMeters/bathymetry) |>
+  mutate(bathymetry = round(as.numeric(bathymetry),0),
+         minimumDepthInMeters = round(as.numeric(minimumDepthInMeters),0)) |>
+  group_by(bathymetry, minimumDepthInMeters, bath_obs_prop_min, bath_obs_prop_max) |>
+  count() |> 
+  collect()
+```
+
+```{r}
+obis_bathymetry_nofilter <- db |>
+  mutate(bath_obs_prop_min = minimumDepthInMeters/bathymetry) |>
+  mutate(bath_obs_prop_max = maximumDepthInMeters/bathymetry) |>
+  mutate(bathymetry = round(as.numeric(bathymetry),0),
+         minimumDepthInMeters = round(as.numeric(minimumDepthInMeters),0)) |>
+  group_by(bathymetry, minimumDepthInMeters, bath_obs_prop_min, bath_obs_prop_max) |>
+  count() |> 
+  collect()
+```
+
+```{r}
+obis_filter_test_2 <- obis_filter_test |> 
   filter(bath_obs_prop_min != Inf) |>
+  filter(bath_obs_prop_min != -Inf) |>
+  filter(bath_obs_prop_min >= 0) |>
+  filter(bath_obs_prop_min <= 1)
+```
+
+```{r}
+obis_filter_test_3 <- obis_filter_test |> 
+  filter(depth_quality_category == "depth_good")
+```
+
+```{r}
+obis_filter_test_3 |> 
   ggplot(aes(x = bath_obs_prop_min, weight = n)) +
   geom_histogram(binwidth = 0.02) +
   labs(x = "min_depth prop", y = "Weighted Count") +
@@ -73,25 +160,45 @@ obis_bathymetry |>
   theme_minimal()
 ```
 
-## rights holder
 ```{r}
-obis_pub <- db |>
-  group_by(rightsHolder) |>
-  count() |> 
-  collect()
+obis_bathymetry <- obis_bathymetry %>%
+  mutate(zone = case_when(
+    bathymetry < 200 ~ "coastal",
+    bathymetry >= 200 & minimumDepthInMeters < 200 ~ "shallow",
+    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min < 0.99 ~ "deep",
+    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min >= 0.99 ~ "benthic"
+  ))
+```
+
+```{r}
+obis_zone_summary <- obis_bathymetry %>%
+  group_by(zone) %>%
+  summarise(total_n = sum(n, na.rm = TRUE))
+obis_zone_summary$pct <- obis_zone_summary$total_n/sum(obis_zone_summary$total_n, na.rm = TRUE)
 ```
 
 ## ID
 ```{r}
 obis_pub <- db |>
-  group_by(ownerInstitutionCode) |>
+  group_by(dataset_id) |>
   count() |> 
   collect()
 ```
 
+## GBIF dataset_id's
+```{r}
+orgs <- read_tsv("https://api.gbif.org/v1/dataset/search/export?format=TSV&") |>
+  dplyr::select(publishing_country, dataset_key, title) |>
+  rename(datasetkey = dataset_key)
+```
+
+## join dataset keys between obis and gbif
+```{r}
+obis_pub$datasetkey <- obis_pub$dataset_id
+combo <- left_join(obis_pub,orgs,by="datasetkey")
+```
+
 ## Map 
-
-
 ```{r}
 obis_map <- db |>
   mutate(latitude = round(decimalLatitude,2), 

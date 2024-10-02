@@ -1,0 +1,143 @@
+---
+title: "depth-analysis"
+author: "Will oestreich"
+date: '2024-10-02'
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE, # show warnings
+  message = FALSE, # show messages
+  error = TRUE, # do not interrupt generation in case of errors,
+  echo = TRUE  # show R code
+)
+```
+
+
+```{r}
+library(tidyverse) 
+library(dplyr)
+library(sf) 
+library(terra)
+library(raster)
+library(arrow)
+library(stringr)
+library(MetBrewer)
+```
+
+## load in parquet
+```{r}
+obis_snapshot <- "obis_20240625.parquet"
+```
+
+## open dataset
+```{r}
+db <- open_dataset(obis_snapshot)
+```
+
+## quality filters
+```{r}
+obis_filter <- db |>
+  filter(!str_detect(flags, "DATE_IN_FUTURE")) |> 
+  filter(!str_detect(flags, "DATE_BEFORE_MIN")) |> 
+  filter(!str_detect(flags, "NO_COORD")) |> 
+  filter(!str_detect(flags, "ZERO_COORD")) |> 
+  filter(!str_detect(flags, "LON_OUT_OF_RANGE")) |> 
+  filter(!str_detect(flags, "LAT_OUT_OF_RANGE")) |> 
+  filter(!str_detect(flags, "NO_DEPTH")) |> 
+  filter(!str_detect(flags, "ON_LAND")) |> 
+  mutate(bath_obs_prop_min = minimumDepthInMeters/bathymetry) |>
+  mutate(bath_obs_prop_max = maximumDepthInMeters/bathymetry) |>
+  mutate(bathymetry = round(as.numeric(bathymetry), 0)) |>
+  mutate(minimumDepthInMeters = round(as.numeric(minimumDepthInMeters), 0)) |>
+  mutate(depth_diff = bathymetry - minimumDepthInMeters) |>
+  mutate(depth_quality_category = ifelse(bath_obs_prop_min <= 1.05 & bath_obs_prop_min >= 0, "depth_good", "depth_bad")) |>
+  mutate(latitude = round(decimalLatitude,3), 
+         longitude = round(decimalLongitude,3)) |>
+  group_by(bathymetry, minimumDepthInMeters, bath_obs_prop_min, bath_obs_prop_max, depth_quality_category, latitude, longitude) |>
+  count() |> 
+  collect()
+```
+
+## explore outcome of custom depth quality flag
+```{r}
+depth_category_sums <- obis_filter |>
+  group_by(depth_quality_category) |>
+  summarize(total_n = sum(n))
+head(depth_category_sums)
+```
+
+## filter out records with bad depth vs. bathymetry comparison flag
+```{r}
+obis_clean <- obis_filter |> 
+  filter(depth_quality_category == "depth_good")
+```
+
+## the custom flag lets in records with depth up to 5% greater than bottom depth. for these records, assign depth to bottom depth and make the proportional depth = 1
+```{r}
+obis_clean <- obis_clean |>
+  mutate(bath_obs_prop_min = ifelse(bath_obs_prop_min > 1, 1, bath_obs_prop_min)) |>
+  mutate(minimumDepthInMeters = ifelse(bath_obs_prop_min > 1, bathymetry, minimumDepthInMeters))
+```
+
+## plot a weighted histogram of observation depth proportional to bottom depth
+```{r}
+obis_clean |> 
+  ggplot(aes(x = bath_obs_prop_min, weight = n)) +
+  geom_histogram(binwidth = 0.02) +
+  labs(x = "min_depth prop", y = "Weighted Count") +
+  theme_minimal()
+```
+
+## zones
+```{r}
+obis_clean <- obis_clean %>%
+  mutate(zone = case_when(
+    bathymetry < 200 ~ "coastal_or_shallow",
+    bathymetry >= 200 & minimumDepthInMeters < 200 ~ "coastal_or_shallow",
+    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min < 0.99 ~ "deep",
+    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min >= 0.99 ~ "benthic"
+  ))
+
+obis_zone_summary <- obis_clean %>%
+  group_by(zone) %>%
+  summarise(total_n = sum(n, na.rm = TRUE))
+obis_zone_summary$pct <- obis_zone_summary$total_n/sum(obis_zone_summary$total_n, na.rm = TRUE)
+head(obis_zone_summary)
+```
+
+## maps
+```{r}
+df_spatial <- obis_clean |> 
+  dplyr::filter(!is.na(latitude), 
+         !is.na(longitude)) |> 
+  st_as_sf(coords = c("longitude", "latitude"), 
+           crs = "+proj=robin +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m")
+```
+
+```{r}
+zone_list <- split(df_spatial, df_spatial$zone)
+
+raster_list <- list()
+
+crs <- "+proj=robin +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m" 
+for (zone_name in names(zone_list)) {
+  zone_data <- zone_list[[zone_name]]
+  
+  ras_temp <- raster(xmn=-180, xmx=180, ymn=-90, ymx=90, resolution=c(0.1, 0.1), vals=NA)
+  raster_zone <- rasterize(zone_data, ras_temp, field = "n", fun = 'sum')
+  
+  terra_zone <- terra::rast(raster_zone)
+  terra_zone_proj <- terra::project(terra_zone, crs, mask=TRUE)
+  
+  raster_list[[zone_name]] <- terra_zone_proj
+}
+
+raster_stack <- terra::rast(raster_list)
+```
+
+```{r global_plot, cache=TRUE}
+colors <- c("grey", met.brewer(name="Isfahan1",n=20,type="continuous"))
+# take log for viz
+terra::plot(log(raster_stack,10), col = colors)
+```
