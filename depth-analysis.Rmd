@@ -102,15 +102,19 @@ obis_clean |>
 ```{r}
 obis_clean <- obis_clean %>%
   mutate(zone = case_when(
-    bathymetry < 200 ~ "coastal_or_shallow",
-    bathymetry >= 200 & minimumDepthInMeters < 200 ~ "coastal_or_shallow",
-    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min < 0.99 ~ "deep",
-    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min >= 0.99 ~ "benthic"
+    bathymetry < 200 ~ "coastal or shallow",
+    bathymetry >= 200 & minimumDepthInMeters < 200 ~ "coastal or shallow",
+    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min < 0.99 ~ "deep (midwater)",
+    bathymetry >= 200 & minimumDepthInMeters > 200 & bath_obs_prop_min >= 0.99 ~ "deep (benthic)"
   ))
+```
 
+```{r}
 obis_zone_summary <- obis_clean %>%
+  filter(!is.na(zone)) %>%  
   group_by(zone) %>%
   summarise(total_n = sum(n, na.rm = TRUE))
+
 obis_zone_summary$pct <- obis_zone_summary$total_n/sum(obis_zone_summary$total_n, na.rm = TRUE)
 head(obis_zone_summary)
 ```
@@ -149,4 +153,10 @@ raster_stack <- terra::rast(raster_list)
 colors <- c("grey", met.brewer(name="Isfahan1",n=20,type="continuous"))
 # take log for viz
 terra::plot(log(raster_stack,10), col = colors)
+```
+
+```{r}
+library(fst)
+write.csv(obis_zone_summary,"outputs/obis_zone_summary.csv")
+write_fst(obis_clean,"outputs/obis_clean.fst",compress = 90)
 ```
