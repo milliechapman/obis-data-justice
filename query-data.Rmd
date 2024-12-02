@@ -187,15 +187,27 @@ obis_pub <- db |>
 
 ## GBIF dataset_id's
 ```{r}
-orgs <- read_tsv("https://api.gbif.org/v1/dataset/search/export?format=TSV&") |>
-  dplyr::select(publishing_country, dataset_key, title) |>
-  rename(datasetkey = dataset_key)
+nodes <- read_tsv("datasets.tsv") |>
+  rename(dataset_id = id)
+orgs <- read_tsv("datasets_orgs.tsv") |>
+  rename(dataset_id = id) |>
+  left_join(nodes)
 ```
 
 ## join dataset keys between obis and gbif
 ```{r}
-obis_pub$datasetkey <- obis_pub$dataset_id
-combo <- left_join(obis_pub,orgs,by="datasetkey")
+nodes_classification <- read_csv("nodes_obs_classified.csv") |>
+  dplyr::select(node_name, n, class)
+
+node_obs <- nodes_classification |>
+  group_by(class) |>
+  summarise(n = sum(n)) |>
+  arrange(-n) |>
+  mutate(all = sum(n)) |>
+  mutate(perc = n/all*100) |>
+  arrange(-perc) |>
+  ggplot(aes(x = class, y = perc)) + geom_col() + coord_flip()
+
 ```
 
 ## Map 

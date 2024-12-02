@@ -1,0 +1,39 @@
+node_name,n,continent,class
+EurOBIS,34017109,Europe,High Income
+OBIS Australia,30715085,Oceania,High Income
+OBIS Canada,12973719,North America,High Income
+OBIS USA,12834019,North America,High Income
+"EurOBIS,OBIS UK",7879652,Europe,High Income
+OBIS Secretariat,5344870,Europe,High Income
+OBIS-SEAMAP,4995364,North America,High Income
+AfrOBIS,3558349,Africa,Upper middle income
+Antarctic OBIS,2819494,Europe,High Income
+Ocean Tracking Network,2449170,North America,High Income
+OBIS Colombia,2405762,South America,Upper middle income
+SWP OBIS,2178575,Oceania,High Income
+Fish OBIS,1444969,North America,High Income
+OBIS Japan,1056815,Asia,High Income
+OBIS UK,765727,Europe,High Income
+OBIS Brazil,532612,South America,Upper middle income
+Caribbean OBIS,418465,South America,Not classified
+Arctic OBIS,371917,Iceland,High Income
+"EurOBIS,Oceans Past Initiative",338447,Europe,High Income
+OBIS Argentina,206123,South America,Upper middle income
+OBIS Deep Sea,158767,Europe,High Income
+OBIS ISA,137179,Global,High Income
+IndOBIS,107036,Asia,Lower middle income
+MedOBIS,83630,Europe,High Income
+SEA OBIS,63550,Asia,Upper middle income
+OBIS Malaysia,52500,Asia,Upper middle income
+NA,50332,NA,High Income
+OBIS Black Sea,47417,Europe,Upper middle income
+"EurOBIS,OBIS Kenya",37515,,Lower middle income
+OBIS China,23345,Asia,Upper middle income
+HAB OBIS,18980,Thematic,High Income
+ESP OBIS,7177,South America,High Income
+OBIS Kenya,4313,Africa,Lower middle income
+OBIS CPPS,3915,South America,Upper middle income
+OBIS Senegal,3560,Africa,Lower middle income
+OBIS Indonesia,3154,Asia,Upper middle income
+PEGO OBIS,3043,Asia,Lower middle income
+LOW INCOME,0,NA,Low income
