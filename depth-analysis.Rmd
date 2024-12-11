@@ -23,6 +23,9 @@ library(raster)
 library(arrow)
 library(stringr)
 library(MetBrewer)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(scales)
 ```
 
 ## load in parquet
@@ -151,8 +154,83 @@ raster_stack <- terra::rast(raster_list)
 
 ```{r global_plot, cache=TRUE}
 colors <- c("grey", met.brewer(name="Isfahan1",n=20,type="continuous"))
-# take log for viz
-terra::plot(log(raster_stack,10), col = colors)
+r <- rotate(raster_stack)
+terra::plot(log(r,10), col = colors)
+```
+
+```{r}
+# Reproject raster to Robinson projection
+rob_proj <- "+proj=robin"
+raster_stack_robin <- project(raster_stack, rob_proj)
+
+# Get world map in Robinson projection
+world <- ne_countries(scale = "medium", returnclass = "sf")
+world_robin <- st_transform(world, crs = rob_proj)
+
+# Convert raster to data frame for ggplot
+raster_df <- as.data.frame(raster_stack_robin[[1]], xy = TRUE)
+colnames(raster_df) <- c("x", "y", "observations")  # Rename columns
+
+# Define color palette
+colors <- met.brewer(name = "Isfahan1", n = 20, type = "continuous")
+
+# Plot with ggplot
+ggplot() +
+  geom_raster(data = raster_df, aes(x = x, y = y, fill = log10(observations))) +
+  geom_sf(data = world_robin, fill = "grey", color = NA) +
+  scale_fill_gradientn(colors = colors, name = "log10(observations)") +
+  coord_sf(crs = rob_proj) +
+  theme_minimal() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid = element_blank()      
+    )
+```
+
+```{r}
+# Reproject raster stack to Robinson projection
+rob_proj <- "+proj=robin"
+raster_stack_robin <- project(raster_stack, rob_proj)
+
+# Get world map in Robinson projection
+world <- ne_countries(scale = "medium", returnclass = "sf")
+world_robin <- st_transform(world, crs = rob_proj)
+
+# Define color palette
+colors <- met.brewer(name = "Hokusai2", n = 20, type = "continuous")
+
+# Set the colorbar limits
+color_limits <- c(0, 6)
+
+# Loop through each raster layer and create/save a separate plot
+for (i in 1:nlyr(raster_stack_robin)) {
+  # Extract the current layer as a data frame
+  raster_df <- as.data.frame(raster_stack_robin[[i]], xy = TRUE)
+  colnames(raster_df) <- c("x", "y", "value")  # Standardize column names
+  
+  # Get the layer name
+  layer_name <- names(raster_stack_robin)[i]
+  
+  # Create the plot
+  plot <- ggplot() +
+    geom_raster(data = raster_df, aes(x = x, y = y, fill = log10(value))) +
+    geom_sf(data = world_robin, fill = "grey", color = NA) +
+    scale_fill_gradientn(colors = colors, name = "log10(observations)", limits = color_limits) +  # Set colorbar limits
+    coord_sf(crs = rob_proj) +
+    theme_minimal() +
+    theme(
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank(),
+      panel.grid = element_blank()
+    )
+  
+  # Display the plot 
+  print(plot)
+  
+  # Save the plot to a file
+  ggsave(filename = paste0("figures/", layer_name, "_map.png"), plot = plot, width = 10, height = 6, dpi = 300)
+}
 ```
 
 ```{r}
