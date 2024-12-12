@@ -216,7 +216,12 @@ for (i in 1:nlyr(raster_stack_robin)) {
   plot <- ggplot() +
     geom_raster(data = raster_df, aes(x = x, y = y, fill = log10(value))) +
     geom_sf(data = world_robin, fill = "grey", color = NA) +
-    scale_fill_gradientn(colors = colors, name = "log10(observations)", limits = color_limits) +  # Set colorbar limits
+    scale_fill_gradientn(
+      colors = colors, 
+      name = "log10(observations)", 
+      limits = color_limits,
+      guide = "none"  # Remove the colorbar
+    ) +
     coord_sf(crs = rob_proj) +
     theme_minimal() +
     theme(
